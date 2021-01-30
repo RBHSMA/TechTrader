@@ -11,7 +11,6 @@ class IndikatorModelForm(forms.ModelForm):
             'name': forms.TextInput(attrs={'class': 'john'}),
             'beschreibung': forms.Textarea(attrs={'class':'form-control'}),
             'code': forms.Textarea(attrs={'class':'johnny'}),
-            #works
         }
 
     
