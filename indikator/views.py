@@ -20,11 +20,11 @@ class IndikatorErstellenView(CreateView):
 
 
     def form_valid(self, form):
-        try:
-            r = requests.post('http://localhost:8001/indikatoren/', data=form.cleaned_data)
-        except ConnectionError:
+        # try:
+        #     r = requests.post('http://localhost:8001/indikatoren/', data=form.cleaned_data)
+        # except ConnectionError:
             
-        console.log(r.status_code)
+        # console.log(r.status_code)
         return super().form_valid(form)
     
 
