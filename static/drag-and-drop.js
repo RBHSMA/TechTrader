@@ -1,42 +1,54 @@
-const draggables = document.querySelectorAll('.draggable')
-const containers = document.querySelectorAll('.container')
+const draggableListe = document.querySelectorAll('.draggable') // Liste mit allen verschiebbaren Elementen
+const containerListe = document.querySelectorAll('.container') // Liste mit allen Containern
 
-// add all necessary eventlisteners to the draggable elements.
-draggables.forEach(draggable => {
+/** 
+ * fügt zu jeden draggable element die eventlistener dragstart und dragend hinzu
+ * wenn das element verschoben wird, wird die class dragging hinzugefügt, 
+ * wenn element losgelassen wird, wird die class dragging wieder entfernt   * 
+ */
+draggableListe.forEach(draggable => {
   draggable.addEventListener('dragstart', () => {
     draggable.classList.add('dragging')
-    draggable.querySelector('.number').innerHTML = ""
-  }) //when we start dragging the item  add  the class dragging. For styling purposes
-
+    draggable.querySelector('.Reihenfolgennummer').innerHTML = ""
+  }) 
   draggable.addEventListener('dragend', () => {
-    // elementChildren(containers[0])[0].querySelector('.number').innerHTML = 211
+
     draggable.classList.remove('dragging')
-    //console.log(elementChildren(containers[0])[0].querySelector('.number').innerHTML)
-  }) // when we stop dragging, remove the dragging class
+    
+  }) 
 })
 
-containers.forEach(container => {
-  container.addEventListener('dragover', e => { //the event "dragover" is happening whenever an element is over any container, when not over container, this event stops
-    e.preventDefault() // to enable the dropping of elements, otherwise the mouse changes to  "do not allow" symbol. By default dropping inside of an element is disabled 
-    const afterElement = getDragAfterElement(container, e.clientY)
-    const draggable = document.querySelector('.dragging') // get the currently dragged element, this applies to only one element
-    if (afterElement == null) {
-      container.appendChild(draggable) // append the dragged element to the container the mouse is inside of if its at the last position
-      
+/**
+ * fügt jedem container den eventlistener für das event "dragover" hinzu, dieses event ereignet sich, wenn ein element über einem container ist
+ * es wird dann überprüft, ob das verschobene Element ein folgendes Element hat,
+  * wenn nein, dann wird das verschobene Element einfach angehängt
+  * wenn ja, dann wird es vor das folgende Element eingesetzt
+*/
+containerListe.forEach(container => {
+  container.addEventListener('dragover', e => { 
+    e.preventDefault() // per default ist das verschieben nicht erlaubt und das mouse-icon wird verändert. Dieser Befehl verhindert dies
+    const folgendesElement = naechstesElementNachDraggable(container, e.clientY)
+    const draggable = document.querySelector('.dragging') //das element welches aktuell verschoben wird
+    if (folgendesElement == null) {
+      container.appendChild(draggable)      
     } else {
-      container.insertBefore(draggable, afterElement) //otherwise insert the dragged element before the afterElement
-      //change the number of the dragged element as well as all following numbers
+      container.insertBefore(draggable, folgendesElement)
     }
-    numberEach()
+    elementeNummerieren()
   })
 })
 
-function postToView(){
+/**
+ * @description
+ * Es werden die Regeln, die sich im Container "Verwendete Regeln" befinden in ein JSON gespeichert und als String in das Form-Feld "regeln" eingefügt 
+ * um die Nutzerauswahl speichern zu können 
+ */
+function ausgewählteRegelnSpeichern(){
   //go through all rules in the container and add only the necessary elements to a json
-  var regeln = elementChildren(containers[0])
+  var regeln = elementChildNodes(containerListe[0])
   regelnJson = []
   regeln.forEach(regel=>{
-    var regelChildren = elementChildren(regel)
+    var regelChildren = elementChildNodes(regel)
     regelJson = {
       "id": regelChildren[1].innerHTML,
       "name": regelChildren[2].innerHTML,
@@ -49,41 +61,53 @@ function postToView(){
 }
 
 
-// goes over each child of each container and gives it the corresponding number it has in the array list
-function numberEach(){
-  containers.forEach(container =>{
-    children = elementChildren(container)
+/**
+ * @description
+ * Es werden alle Elemente von allen Containern von oben nach unten durchnummeriert
+ */
+function elementeNummerieren(){
+  containerListe.forEach(container =>{
+    children = elementChildNodes(container)
     counter = 1;
     children.forEach(element => {
-      element.querySelector('.number').innerHTML=counter;
+      element.querySelector('.Reihenfolgennummer').innerHTML=counter;
       counter++;
     })
   })
 }
-function elementChildren (element) {
-  var childNodes = element.childNodes,
-      children = [],
-      i = childNodes.length;
 
+/**
+ * @param {*} element Das Element von welchem die Unterelemente  zurückgegeben werden sollen
+ * @description
+ * Gibt die Unterelemente für das ausgewählte Element zurück
+ */
+function elementChildNodes (element) {
+  var childNodes = element.childNodes,
+      unterelemente = [],
+      i = childNodes.length;
   while (i--) {
       if (childNodes[i].nodeType == 1) {
-          children.unshift(childNodes[i]);
+        unterelemente.unshift(childNodes[i]);
       }
   }
-
-  return children;
+  return unterelemente;
 }
-//this function determines the elementthat is below (after) the mouse cursor
-function getDragAfterElement(container, y) { // y is the y position of the mouse
-  const draggableElements = [...container.querySelectorAll('.draggable:not(.dragging)')] //determine all the elements inside the container we are hovering over except the element that is being dragged
+/**
+ *  
+ * @param {*} container Der Container, in welchen das Element verschoben wird
+ * @param {*} y Die y-Position des Mauszeigers
+ * @description Bestimmt das Element, welches sich unter dem Mauszeigers befindet (wenn dieses Element existiert) .
+ */
 
-  return draggableElements.reduce((closest, child) => { //reduce determines the single element that is after the mouse cursor based on the y position
-    const box = child.getBoundingClientRect()
-    const offset = y - box.top - box.height / 2 //Dinstance between closest element and mouse cursor
-    if (offset < 0 && offset > closest.offset) { // if offset negative, it means that were above another element, if positive, we're below the elemenet
-      return { offset: offset, element: child }
+function naechstesElementNachDraggable(container, y) { 
+  const draggableElemente = [...container.querySelectorAll('.draggable:not(.dragging)')] // alle Elemente im Container außer das Element, welches verschoben wird
+  return draggableElemente.reduce((closest, unterelement) => { //reduce ermittelt das Element, das sich nach dem Mauszeiger befindet, anhand der y-Position
+    const box = unterelement.getBoundingClientRect()
+    const abstandNext = y - box.top - box.height / 2 
+    if (abstandNext < 0 && abstandNext > closest.abstandNext) { // abstandNext < 0 => über einem Element, abstandNext > 0 unter einem Element
+      return { abstandNext: abstandNext, element: unterelement }
     } else {
       return closest
     }
-  }, { offset: Number.NEGATIVE_INFINITY }).element
+  }, { abstandNext: Number.NEGATIVE_INFINITY }).element
 }

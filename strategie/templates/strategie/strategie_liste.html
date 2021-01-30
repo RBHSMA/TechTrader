@@ -1,30 +1,9 @@
 {% extends 'base.html' %}
 
-{% block titel %}Strategien Liste{%endblock%}
+{% block titel %}
+  Strategien Liste
+{%endblock%}
 
-{% block style %}
-<style>
-    table {
-      font-family: arial, sans-serif;
-      border-collapse: collapse;
-      width: 100%;
-    }
-    
-    td, th {
-      border: 1px solid #dddddd;
-      text-align: left;
-      padding: 8px;
-      min-width:100px;
-    }
-    tr:nth-child(odd) {
-      background-color: #f88b8b;
-    }
-    tr:nth-child(even) {
-      background-color: #ecdfdf;
-    }
-    </style>
-
-{% endblock %} 
 {% block content %}
 <h1>Strategien</h1>
 <table>
@@ -39,8 +18,7 @@
 </tr>
 {%endfor%}
 </table>   
-
-    
+ 
 <form action="./erstellen/">
     <input type="submit" value="Neue Strategie" />
 </form>

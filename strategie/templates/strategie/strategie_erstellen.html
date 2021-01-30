@@ -9,20 +9,17 @@
     <script src="{% static 'drag-and-drop.js' %}" defer></script> 
 {% endblock %} 
 
-{% block titel %}Strategie erstellen{%endblock%}
+{% block titel %}
+    Strategie erstellen 
+{%endblock%}
 
 {% block content %}
-
-   
-    <form action="." method="post" onsubmit="postToView()"> {% csrf_token %}
+    <form action="." method="post" onsubmit="ausgewählteRegelnSpeichern()"> {% csrf_token %}
         {{form.as_p}}  
         {% include './drag_and_drop.html'%}
         <input type='submit' value="Erstellen">
     </form>
-
-
-   
-
+    
     <div>{% include 'zurück.html' with link="/strategien/" %}</div>
 {% endblock %}
 
