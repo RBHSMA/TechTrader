@@ -26,14 +26,15 @@ from trading.mixins import (
     bearbeitenViewMixin,
     entfernenViewMixin,
     fehlerViewMixin,
+    plotKonfigViewMixin,
 
     datenAnBackendSenden,
     allgemeineFehlerPruefung
 )
 
 # Indikator app imports
-from .forms  import IndikatorModelForm
-from .models import Indikator
+from .forms  import IndikatorModelForm, IndikatorPlotKonfigForm
+from .models import Indikator, IndikatorPlotKonfig
 
 appName = "indikator"
 
@@ -88,6 +89,14 @@ class IndikatorFehlerView(fehlerViewMixin):
 
     appName       = appName
 
+class IndikatorPlotKonfigView(plotKonfigViewMixin):
+    """
+        Klasse der Ansicht für das Konfigurieren der Indikator Auswertung.
+        """  
+    form_class = IndikatorPlotKonfigForm    
+    appName    = appName
+    model      = IndikatorPlotKonfig
+
 class IndikatorGraphView(View):
     """
         Klasse der Ansicht für das Anzeigen der Indikator-Graph-Ansicht.
@@ -97,7 +106,7 @@ class IndikatorGraphView(View):
         get
             Holt die benötigten Daten und generiert daraus Graphen. 
         """
-    template_name = 'indikator/indikator_graph.html'
+    template_name = 'modulViews/generisch_ansicht_plotErgebnis.html'
 
     def get(self, request, *args, **kwargs):
         """
@@ -109,19 +118,32 @@ class IndikatorGraphView(View):
             Im zweiten sind die Aktienkurse-Daten des DAX als Linie dargestellt sowie alle Graphen des ausgewählten Indikators.
             Bei beiden Koordinaten-Systemen wird der Zeitraum vom 01.0.1.2019 bis 31.12.2020 dargestellt.
         """
-        daten   = {
-            "id"          : self.kwargs.get("id"),
+
+        if("konfigDaten" not in request.session):
+            request.session["fehler"] = "Keine Konfigurationsdaten vorhanden. Versuchen Sie es nochmal..."     
+            return redirect(reverse('indikator:indikator-fehler')) 
+
+        konfigDaten = request.session["konfigDaten"]
+        daten = {
+            "id"          : konfigDaten["id"],
             "benutzer_id" : self.request.user.username,
-            "isin"        : "DE0008469008", 
-            "start_datum" : "2019-01-01",
-            "end_datum"   : "2020-12-31"
+            "isin"        : konfigDaten["isin"], 
+            "start_datum" : konfigDaten["start_datum"],
+            "end_datum"   : konfigDaten["end_datum"]
         }
-    
         # Kurs daten werden hier geholt --------------
         aktienkursDaten = datenAnBackendSenden(
             hauptPfad = "kurs",
             unterPfad = "/get",
-            daten     = daten
+            daten     =  daten,
+        )
+        isinDaten = datenAnBackendSenden(
+            hauptPfad = "isin",
+            unterPfad = "/get",
+            daten     = {
+                "benutzer_id" : self.request.user.username,
+                "isin"        : konfigDaten["isin"], 
+            }
         )
 
         # Prüfen ob kein Fehler entstanden ist
@@ -136,6 +158,13 @@ class IndikatorGraphView(View):
             unterPfad = "/auswerten",
             daten     = daten
         )
+        anzeigeDaten                = serverAntwort["indikator"]
+        anzeigeDaten["indikatorId"] = konfigDaten["id"]
+        anzeigeDaten["start_datum"] = datetime.strptime(konfigDaten["start_datum"], '%Y-%m-%d').strftime('%d.%m.%Y') 
+        anzeigeDaten["end_datum"]   = datetime.strptime(konfigDaten["end_datum"], '%Y-%m-%d').strftime('%d.%m.%Y')
+        anzeigeDaten["isin"]        = konfigDaten["isin"]
+        anzeigeDaten["isinName"]    = isinDaten["isin"]["name"]
+
         # Prüfen ob kein Fehler entstanden ist
         # Wenn ja auf FehlerSeite leiten
         if(allgemeineFehlerPruefung(serverAntwort = serverAntwort, request = request)):
@@ -164,12 +193,12 @@ class IndikatorGraphView(View):
             plot_width  = 1000, 
             plot_height = 700,
             x_axis_type = "datetime", 
-            tools       = "pan,wheel_zoom,box_zoom,reset,save") 
+            tools       = "pan,wheel_zoom, box_zoom, reset, save, crosshair") 
         p2 = figure( # Koordinaten-System Deklaration
             plot_width  = 1000, 
             plot_height = 700,
             x_axis_type = "datetime", 
-            tools       = "pan,wheel_zoom,box_zoom,reset,save",
+            tools       = "pan, wheel_zoom, box_zoom, reset, save, crosshair",
             x_range     = p1.x_range, 
             y_range     = p1.y_range)
 
@@ -197,7 +226,7 @@ class IndikatorGraphView(View):
             aktienKursDataFrame.zeitstempel, # Paar-2 Werte für x-Achse 
             aktienKursDataFrame.low, # Paar-2 Werte für y-Achse 
             color = "black",
-            legend_label = "High-Low-Linien"
+            legend_label = isinDaten["isin"]["name"] + " - High-Low-Linien"
         )
         # Jedes "Punkt" einer vbar ist ein Rechteck mit einem x-Wert, einer Breite, und zwei Werten für die y-Achse (Rechteck-Höhe)
         p1.vbar( # Hier werden die grünen Kerzen "Torsos" erstellt
@@ -207,7 +236,7 @@ class IndikatorGraphView(View):
             aktienKursDataFrame.close[inc], # Teil 2 Werte für y-Achse
             fill_color = "green", 
             line_color = "black",
-            legend_label = "Grüne Candlesticks"
+            legend_label = isinDaten["isin"]["name"] + " - Grüne Kerzen"
         )
 
         p1.vbar( # Hier werden die roten Kerzen "Torsos" erstellt
@@ -217,7 +246,7 @@ class IndikatorGraphView(View):
             aktienKursDataFrame.close[dec], # Teil 2 Werte für y-Achse
             fill_color = "red", 
             line_color = "black",
-            legend_label = "Rote Candlesticks",
+            legend_label = isinDaten["isin"]["name"] + " - Rote Kerzen",
         )  
 
         #Jeder Punkt einer line braucht ein Koordinaten-Paar
@@ -227,7 +256,7 @@ class IndikatorGraphView(View):
             line_width    = 3, 
             color        = "red", 
             alpha        = 0.5, 
-            legend_label = "DAX"
+            legend_label = isinDaten["isin"]["name"]
         )   
 
         farben = itertools.cycle(palette) # Farbenauswahl
@@ -241,7 +270,7 @@ class IndikatorGraphView(View):
                     # für eine korrekte Darstellung müssen alle Graphen das selbe Zeitstempel DataFrame verwenden
                     # hier werden die Graphen-Werte der einzelnen Graphen mit den Zeitstempeln des zeitstempelDataFrame zu einen einzigen DataFrame vereinigt
                     angepassteDatenPunkte = pd.concat(
-                        [zeitstempelDataFrame,elementDataFrame[graph]],axis=1
+                        [zeitstempelDataFrame,elementDataFrame[graph]],axis = 1
                     )
                     farbe = next(farben)
                     # und in beide Koordinatensysteme eingefügt
@@ -250,7 +279,7 @@ class IndikatorGraphView(View):
                             plot_width  = 1000, 
                             plot_height = 700,
                             x_axis_type = "datetime", 
-                            tools       = "pan,wheel_zoom,box_zoom,reset,save",
+                            tools       = "pan, wheel_zoom, box_zoom, reset, save, crosshair",
                             x_range     = p1.x_range)
                         p3.line( # 
                             zeitstempelDataFrame["zeitstempel"], 
@@ -290,13 +319,13 @@ class IndikatorGraphView(View):
             plot.xaxis.major_label_orientation = pi/4
 
 
-        tab1        = Panel(child = p1, title = "Candlesticks")
-        tab2        = Panel(child = p2, title = "Linie")
+        tab1 = Panel(child = p1, title = "Candlesticks")
+        tab2 = Panel(child = p2, title = "Linie")
         if(len(plotListe) == 2):
             script, div = components(Tabs(tabs = [tab1, tab2]))
         else:
-            script, div = components(column(Tabs(tabs = [tab1, tab2]),p3))
+            script, div = components(column(Tabs(tabs = [tab1, tab2]), p3))
         return render(
-            request, 'indikator/indikator_graph.html', 
-            {'script': script, 'div': div,'daten': serverAntwort["indikator"],'bearbeitbar' : self.request.session["bearbeitbar"]}
+            request, 'modulViews/generisch_ansicht_plotErgebnis.html',
+                  {'script': script, 'div': div,'daten': anzeigeDaten, 'bearbeitbar' : self.request.session["bearbeitbar"], "appName" : appName}
         )

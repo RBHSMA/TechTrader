@@ -22,6 +22,8 @@ from django.views.generic import CreateView, TemplateView
 
 from trading.mixins import (
     fehlerViewMixin,
+    plotKonfigViewMixin,
+
     allgemeineFehlerPruefung,
     datenAnBackendSenden,
 )
@@ -43,100 +45,15 @@ class SimulationFehlerView(fehlerViewMixin):
 
     appName = appName
 
-class SimulationConfigView(CreateView): 
+class SimulationConfigView(plotKonfigViewMixin): 
     """
         Klasse der Ansicht für das Konfigurieren einer Simulation.
-
-        Methoden
-        --------
-        get 
-            Holt alle benötigten Daten.
-        form_valid
-            Schickt Eingabedaten an Backend und prüft auf Fehler.
         """  
-    form_class    = SimulationModelForm
-    template_name = 'simulation/simulation_config.html'
+
+    form_class = SimulationModelForm    
+    appName    = appName
+    model      = Simulation
        
-
-    def get(self, request, *args, **kwargs):
-        """ 
-        Hier werden alle benötigten Daten für das Konfigurieren einer Simulation geholt. Dazu gehören alle verfügbaren Strategien 
-        und alle verfügbaren finanziellen Instrumente, auf denen eine Simulation laufen kann. 
-        Diese werden an das Template über den Context weitergegeben. Die getroffene Wahl wird über JavaScript in das entsprechende Formular Feld geschrieben
-        """
-        Simulation.objects.all().delete() # Alle erstellten Objekte löschen. Diese werden temporär erstellt um verlustfreies Anzeigen von Daten zu garantieren
-
-        self.object  = None # CreateView braucht irgendein Object, None ist dabei ein valider Wert
-        context      = super().get_context_data(**kwargs) 
-
-        # Hier werden alle Strategie-Daten bezogen.
-        serverAntwort = datenAnBackendSenden(
-            hauptPfad = "strategie/", 
-            unterPfad = "getalle", 
-            daten = {
-                "benutzer_id" : request.user.username,
-            }
-        )
-        # Wenn Fehler enthalten, auf FehlerSeite weiterleiten, ansonsten Strategie Daten im Context speichern.
-        if(allgemeineFehlerPruefung(serverAntwort,request)):
-            return redirect(reverse('simulation:simulation-fehler'))  
-        context['strategien'] = serverAntwort["strategien"]
-        # ------------------------
-        
-        # Hier werden alle ISIN-Daten bezogen.
-        serverAntwort = datenAnBackendSenden(
-            hauptPfad = "isin/", 
-            unterPfad = "getalle", 
-            daten = {
-                "benutzer_id": request.user.username,
-            }
-        )
-        if(allgemeineFehlerPruefung(serverAntwort,self.request)):
-            return redirect(reverse('simulation:simulation-fehler'))  
-        
-        alleIsins = []
-        """ 
-        Die ISINs können Indizes und Währungen enthalten. 
-        Indices können anhand zwei verschiedener Attribute (ist_index == True und einheit == "Punkte") identifiziert werden
-        Währungen können anhand der Einheit identifiziert werden (einheit == "undefiniert")
-        Alle ISINs die nicht diese Attribute haben, werden in eine separate Liste gespeichert und schließlich im Context gespeichert
-        """
-        for isin in serverAntwort["isins"]:
-            if(not isin["ist_index"] and isin["einheit"] != "Punkte" and isin["einheit"] != "undefiniert"):
-                alleIsins.append(isin)
-                
-        serverAntwort["isins"] = alleIsins
-        context['isins'] = serverAntwort["isins"]
-        # ------------------------
-        return self.render_to_response(context)
-
-    def form_valid(self, form):
-        """
-        Hier werden die Eingabedaten des Nutzers an das Backend gesendet. 
-        Wenn dabei Fehler entstanden sind, wird auf die Fehlerseite weitergeleitet. 
-        Ansonsten wird mit dem return von super.form_valid automatisch ein Simulations-Objekt erstellt, get_absolute_url des Objekts aufgerufen und
-        somit auf die Simulations-Ergebnis-Ansicht weitergeleitet.
-
-        """
-        simulationsDaten = datenAnBackendSenden(
-            hauptPfad = globalerHauptPfad, 
-            unterPfad = "", 
-            daten     = {
-                "benutzer_id"   : self.request.user.username,
-                "strategie_id"  : int(form.cleaned_data["strategie"]),
-                "isin"          : form.cleaned_data["isin"],
-                "start_kapital" : int(form.cleaned_data["startkapital"]),
-                "start_datum"   : str(form.cleaned_data["von_datum"]),
-                "end_datum"     : str(form.cleaned_data["bis_datum"])
-            }
-        )
-
-        if(allgemeineFehlerPruefung(simulationsDaten, self.request)):
-            return redirect(reverse('simulation:simulation-fehler'))  
-        else:
-            self.request.session["simulationsDaten"] = simulationsDaten
-            return super().form_valid(form) 
-
 class SimulationErgebnisView(View):
     """
     Klasse der Ansicht für das Darstellen des Simulations-Ergebnis.
@@ -147,7 +64,7 @@ class SimulationErgebnisView(View):
         Zuständig für das Holen und Darstellen der Ergebnis-Daten.
     """
 
-    template_name = 'simulation_ergebnis.html'
+    template_name = 'modulViews/generisch_ansicht_plotErgebnis.html'
 
     def get(self, request):
         """
@@ -155,22 +72,32 @@ class SimulationErgebnisView(View):
         Dazu gehören die Aktienkurs Daten der zum simulieren verwendeten ISIN und die Simulationsergebnisse.
 
         """
-        simulationsObject = Simulation.objects.last() # Zuletzt erstelltes Objekt holen
-        if(simulationsObject == None): # Prüfen ob es existiert, wenn nicht, auf FehlerSeite weiterleiten und entsprechende Fehlermeldung in session speichern.
-            request.session["fehler"] = "Keine Simulationsdaten vorhanden"     
+        if("konfigDaten" not in request.session):
+            request.session["fehler"] = "Keine Simulationsdaten vorhanden. Versuchen Sie es nochmal..."     
             return redirect(reverse('simulation:simulation-fehler')) 
-        
+
+
+             # Zuletzt erstelltes Objekt holen
+   # Prüfen ob es existiert, wenn nicht, auf FehlerSeite weiterleiten und entsprechende Fehlermeldung in session speichern.
+            
+        konfigDaten   = request.session["konfigDaten"]
+
+        strategie_id  = konfigDaten["strategie_id"]
+        isin          = konfigDaten["isin"]
+        start_kapital = konfigDaten["start_kapital"]
+        start_datum   = konfigDaten["start_datum"]
+        end_datum     = konfigDaten["end_datum"]
         # Hier werden die Simulation-Konfigurations-Daten an das Backend geschickt.
         simulationsDaten = datenAnBackendSenden(
             hauptPfad = globalerHauptPfad, 
             unterPfad = "", 
             daten     = {
                 "benutzer_id"   : self.request.user.username,
-                "strategie_id"  : int(simulationsObject.strategie),
-                "isin"          : simulationsObject.isin,
-                "start_kapital" : int(simulationsObject.startkapital),
-                "start_datum"   : str(simulationsObject.von_datum),
-                "end_datum"     : str(simulationsObject.bis_datum)
+                "strategie_id"  : strategie_id,
+                "isin"          : isin,
+                "start_kapital" : start_kapital,
+                "start_datum"   : start_datum,
+                "end_datum"     : end_datum,
             }
         )
         # Bei Fehlern auf Fehlerseite weiterleiten
@@ -181,18 +108,18 @@ class SimulationErgebnisView(View):
         self.request.session["simulationsDaten"] = simulationsDaten # Simulationsdaten in Session speichern um für die Funktion downloadCSV zugänglich zu machen
         
         #Von- und Bis-Datum in passendes Format TT.MM.JJJJ umwandeln
-        vonDatumAnzeigeFormat = datetime.strptime(str(simulationsObject.von_datum), '%Y-%m-%d').strftime('%d.%m.%Y') 
-        bisDatumAnzeigeFormat = datetime.strptime(str(simulationsObject.bis_datum), '%Y-%m-%d').strftime('%d.%m.%Y')
+        vonDatumAnzeigeFormat = datetime.strptime(start_datum, '%Y-%m-%d').strftime('%d.%m.%Y') 
+        bisDatumAnzeigeFormat = datetime.strptime(end_datum, '%Y-%m-%d').strftime('%d.%m.%Y')
 
         # AnzeigeDaten Dict für Template zusammenbauen
         anzeigeDaten = {
-            "strategie_id"   : int(simulationsObject.strategie),
+            "strategie_id"   : strategie_id,
             "strategie_name" : simulationsDaten["strategie"]["name"],
             "isin"           : simulationsDaten["wertpapier"]["isin"],
             "name"           : simulationsDaten["wertpapier"]["name"],
-            "start_kapital"  : int(simulationsObject.startkapital),
-            "start_datum"    : str(vonDatumAnzeigeFormat),
-            "end_datum"      : str(bisDatumAnzeigeFormat),
+            "start_kapital"  : start_kapital,
+            "start_datum"    : start_datum,
+            "end_datum"      : end_datum,
             "statistik"      : simulationsDaten["strategie_statistik"],
         }
 
@@ -273,7 +200,8 @@ class SimulationErgebnisView(View):
             kursZeitreiheDF.high,   # Y Werte für Punkt 1
             kursZeitreiheDF.zeitstempel, # X Werte für Punkt 2 
             kursZeitreiheDF.low, # Y Werte für Punkt 2
-            color = "black"
+            color = "black",
+            legend_label = simulationsDaten["wertpapier"]["name"] + " - High-Low"
         )
        
         p1.vbar(  # Hier werden die grünen Kerzen "Torsos" erstellt, dargestellt durch Balken je einem X-Wert, zwei Y-Werten und einer Breite
@@ -281,7 +209,8 @@ class SimulationErgebnisView(View):
             w, # Breite 
             kursZeitreiheDF.open[inc], # Y1 Werte der Balken
             kursZeitreiheDF.close[inc], # Y2 Werte der Balken
-            fill_color = "green", line_color = "black"
+            fill_color = "green", line_color = "black",
+            legend_label = simulationsDaten["wertpapier"]["name"] + " - Grüne Kerzen"
         )
         
         p1.vbar(# Hier werden die roten Kerzen "Torsos" erstellt, dargestellt durch Balken je einem X-Wert, zwei Y-Werten und einer Breite
@@ -289,7 +218,8 @@ class SimulationErgebnisView(View):
             w, # Breite 
             kursZeitreiheDF.open[dec], # Y1 Werte der Balken
             kursZeitreiheDF.close[dec], # Y2 Werte der Balken
-            fill_color = "red", line_color = "black"
+            fill_color = "red", line_color = "black",
+            legend_label = simulationsDaten["wertpapier"]["name"] + " - Rote Kerzen"
         )
         # ---------------------------------
         
@@ -317,33 +247,38 @@ class SimulationErgebnisView(View):
                 inEigenesKoord = False
                 if(pruefeObEigeneSkala(key,self)):
                     newPlot = figure(
-                        plot_width=1000, 
-                        plot_height=700, 
-                        x_axis_type="datetime", 
-                        tools="pan, wheel_zoom, box_zoom, reset, save",
-                        x_range=p1.x_range # Verschiebungen entlang der X-Achse von p1 übernehmen
+                        plot_width  = 1000, 
+                        plot_height = 700, 
+                        x_axis_type = "datetime", 
+                        tools       = "pan, wheel_zoom, box_zoom, reset, save, crosshair",
+                        x_range     = p1.x_range # Verschiebungen entlang der X-Achse von p1 übernehmen
                     )
                     inEigenesKoord = True
                     
                 # für jeden key in diesem DataFrame, also für jeden Graph des Indikators
-                for i in listenDict[key][0].keys(): 
+                for graph in listenDict[key][0].keys(): 
                     # wird eine eigene Linie erstellt mit den entsprechenden Y-Werten. Die X-Werte werden dabei vom ZeitstempelDataFrame übernommen,
                     # um es einheitlich zu halten
                     line = pd.concat(
-                        [zeitstempelDataFrame, elementDataFrame[i]], axis=1)
+                        [zeitstempelDataFrame, elementDataFrame[graph]], axis = 1)
 
                     # Wenn eigenes Koordianten System erstellt wurde, an dieses Koordinatensystem fügen 
                     if(inEigenesKoord):
-                        newPlot.line(zeitstempelDataFrame["zeitstempel"], line[i],line_width=3, color=next(colors), alpha=1, legend_label=key+"-"+i)
+                        newPlot.line(
+                            zeitstempelDataFrame["zeitstempel"], 
+                            line[graph], 
+                            line_width = 3, color = next(colors), alpha = 1, 
+                            legend_label = "ID " + key + " - " + graph
+                        )
                     
                     # Ansonsten in beide Koordinatensystemen p1 und p2 
                     else:
                         for plot in [p1,p2]:
                             plot.line(
                                 zeitstempelDataFrame["zeitstempel"], 
-                                line[i],
-                                line_width=3, color=next(colors), alpha=1, 
-                                legend_label=key+"-"+i
+                                line[graph],
+                                line_width = 3, color = next(colors), alpha = 1, 
+                                legend_label = "ID " + key + " - " + graph,
                             )
 
                 # Wenn eigenes Koordinatensystem erstellt wurde, dann dieses zur KoordinatenSystem Liste hinzufügen
@@ -390,7 +325,7 @@ class SimulationErgebnisView(View):
         # script, div = components(Tabs(tabs=[tab1, tab2]))
         script, div = components(column(plotListe))
 
-        return render(request, 'simulation/simulation_ergebnis.html', {'script': script, 'div': div, 'daten': anzeigeDaten})
+        return render(request, 'modulViews/generisch_ansicht_plotErgebnis.html', {'script': script, 'div': div, 'daten': anzeigeDaten, "appName" : "simulation"})
 
 def pruefeObEigeneSkala(ID,callerSelf):
     """

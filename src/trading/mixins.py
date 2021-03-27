@@ -41,6 +41,53 @@ class renderObjectHolenMixin:
             return objektZumRender
         return redirect("../")
 
+class formValidierenMixin:
+    """
+        Klasse zuständig für das Senden der Daten eines neu erstellten/ bearbeiteten Objekts an das Backend.
+    """
+    neuErstellen = None
+    appName      = None
+    def form_valid(self, form):
+        """
+            Schickt die Objektdaten an die API.
+
+            Wird automatisch nach erfolgreichem Ausfüllen und Abschicken des Formulars aufgerufen. 
+            Die neuen Daten werden an die Funktion allgemeinesFormValid() weitergeben, welche das Abschicken an die API übernimmt.
+            Das Dictionary mit den neuen Daten wird abhängig von der App zusammengebaut. 
+            """
+        daten     = {
+            "benutzer_id"            : self.request.user.username,
+            "name"                   : form.cleaned_data["name"],
+            "beschreibung"           : form.cleaned_data["beschreibung"],
+        }
+        if(self.neuErstellen): # neuErstellen == True 
+            unterPfad   = "hinzufuegen"
+        else:# neuErstellen == False 
+            daten["id"] = self.kwargs.get("id")
+            unterPfad   = "bearbeiten"
+
+        if(self.appName == "indikator"):
+            daten["eigene_skala"]           = form.cleaned_data["eigene_skala"]
+            daten["berechnung_pseudo_code"] = form.cleaned_data["berechnung_pseudo_code"]
+
+        if(self.appName == "regel"):
+            daten["berechnung_pseudo_code"] = form.cleaned_data["berechnung_pseudo_code"]
+
+        if(self.appName == "strategie"):
+            regelListe        = form.cleaned_data["regeln"].split(",")
+            #Wandelt die RegelID-Strings in Zahlen um, sonst werden die Daten von der API nicht akzeptiert
+            regelListeMitInts = [ int(regel) for regel in regelListe ] 
+            daten["regeln"]   = regelListeMitInts
+
+        return allgemeinesFormValid(
+            hauptPfad   = self.appName + "/", 
+            unterPfad   = unterPfad, 
+            daten       = daten, 
+            request     = self.request,
+            fehlerSeite = self.appName + ":" + self.appName + "-fehler"
+        )
+
+
 class listenViewMixin(ListView):
     """
     Verallgemeinerte Listen Anisicht. 
@@ -86,16 +133,16 @@ class listenViewMixin(ListView):
         if(allgemeineFehlerPruefung(serverAntwort, request)):
             return redirect(reverse(self.appName + ":" + self.appName + "-fehler")) #appName:appName-fehler
         
-        elementeBezeichnung = self.appName
+
         if(self.appName == "indikator"):
-            elementeBezeichnung = elementeBezeichnung + "en" # indikator + en
+            elementeBezeichnung = self.appName + "en" # indikator + en
         else:
-            elementeBezeichnung = elementeBezeichnung + "n" # regel + n und strategie + n
+            elementeBezeichnung = self.appName + "n" # regel + n oder strategie + n
 
         self.queryset = serverAntwort[elementeBezeichnung]
         return super().get(request, *args, **kwargs)
 
-class hinzufuegenViewMixin(CreateView):
+class hinzufuegenViewMixin(formValidierenMixin, CreateView):
     """
     Verallgemeinerte Hinzufuegen Anisicht. 
     Verwendet das template "modulViews/generisch_hinzufuegen.html".
@@ -124,47 +171,7 @@ class hinzufuegenViewMixin(CreateView):
         context["appName"] = self.appName
         return self.render_to_response(context)
 
-    def form_valid(self, form):
-        """
-            Schickt die Objektdaten an die API.
-
-            Wird automatisch nach erfolgreichem Ausfüllen und Abschicken des Formulars aufgerufen. 
-            Die neuen Daten werden an die Funktion allgemeinesFormValid() weitergeben, welche das Abschicken an die API übernimmt.
-            Das Dictionary mit den neuen Daten wird abhängig von der App zusammengebaut. 
-            """
-        daten     = {
-            "benutzer_id"            : self.request.user.username,
-            "name"                   : form.cleaned_data["name"],
-            "beschreibung"           : form.cleaned_data["beschreibung"],
-        }
-        if(self.neuErstellen): # neuErstellen == True 
-            unterPfad   = "hinzufuegen"
-        else:# neuErstellen == False 
-            daten["id"] = self.kwargs.get("id")
-            unterPfad   = "bearbeiten"
-
-        if(self.appName == "indikator"):
-            daten["eigene_skala"]           = form.cleaned_data["eigene_skala"]
-            daten["berechnung_pseudo_code"] = form.cleaned_data["berechnung_pseudo_code"]
-
-        if(self.appName == "regel"):
-            daten["berechnung_pseudo_code"] = form.cleaned_data["berechnung_pseudo_code"]
-
-        if(self.appName == "strategie"):
-            regelListe        = form.cleaned_data["regeln"].split(",")
-            #Wandelt die RegelID-Strings in Zahlen um, sonst werden die Daten von der API nicht akzeptiert
-            regelListeMitInts = [ int(regel) for regel in regelListe ] 
-            daten["regeln"]   = regelListeMitInts
-
-        return allgemeinesFormValid(
-            hauptPfad   = self.appName + "/", 
-            unterPfad   = unterPfad, 
-            daten       = daten, 
-            request     = self.request,
-            fehlerSeite = self.appName + ":" + self.appName + "-fehler"
-        )
-
-class detailViewMixin(renderObjectHolenMixin,DetailView):
+class detailViewMixin(renderObjectHolenMixin, DetailView):
     """
     Verallgemeinerte Detail Anisicht. 
     Baut auf renderObjectHolenMixin und DetailView auf, aber gewisse Eigenschaften werden hier bereits festgelegt.
@@ -176,7 +183,6 @@ class detailViewMixin(renderObjectHolenMixin,DetailView):
     template_name = 'modulViews/generische_ansicht_detail.html'  
     appName             = None
     model               = None
-    hauptPfad           = None
     leerzeichenErsetzen = True
     istDetailView       = True
 
@@ -189,7 +195,7 @@ class detailViewMixin(renderObjectHolenMixin,DetailView):
         context["bearbeitbar"] = self.request.session["bearbeitbar"]
         return context
 
-class bearbeitenViewMixin(renderObjectHolenMixin,hinzufuegenViewMixin):
+class bearbeitenViewMixin(renderObjectHolenMixin, formValidierenMixin, CreateView):
     """
     Verallgemeinerte Bearbeiten Anisicht. 
     Baut auf renderObjectHolenMixin und hinzufuegenViewMixin auf, aber gewisse Eigenschaften werden hier bereits festgelegt.
@@ -274,6 +280,102 @@ class fehlerViewMixin(TemplateView):
                 return redirect(reverse(self.appName + ":" + self.appName + "-liste")) #appname:appname-liste
         
         return self.render_to_response(context)
+
+class plotKonfigViewMixin(CreateView):
+
+    template_name = 'modulViews/generische_ansicht_plotKonfig.html'
+    model         = None
+    appName       = None
+
+    def get(self, request, *args, **kwargs):
+        """ 
+        Hier werden alle benötigten Daten für das Konfigurieren einer Simulation geholt. Dazu gehören alle verfügbaren Strategien 
+        und alle verfügbaren finanziellen Instrumente, auf denen eine Simulation laufen kann. 
+        Diese werden an das Template über den Context weitergegeben. Die getroffene Wahl wird über JavaScript in das entsprechende Formular Feld geschrieben
+        """
+        self.model.objects.all().delete() # Alle erstellten Objekte löschen. Diese werden temporär erstellt um verlustfreies Anzeigen von Daten zu garantieren
+
+        self.object  = None # CreateView braucht irgendein Object, None ist dabei ein valider Wert
+        context      = super().get_context_data(**kwargs) 
+        
+        # Hier werden alle Strategie-Daten bezogen.
+        if(self.appName == "simulation"):
+            serverAntwort = datenAnBackendSenden(
+                hauptPfad = "strategie/", 
+                unterPfad = "getalle", 
+                daten = {
+                    "benutzer_id" : request.user.username,
+                }
+            )
+
+            # Wenn Fehler enthalten, auf FehlerSeite weiterleiten, ansonsten Strategie Daten im Context speichern.
+            if(allgemeineFehlerPruefung(serverAntwort, request)):
+                return redirect(reverse(self.appName + ":" + self.appName + "-fehler"))  #appname:appname-fehler  
+            context['strategien'] = serverAntwort["strategien"]
+            # ------------------------
+        
+        # Hier werden alle ISIN-Daten bezogen.
+        serverAntwort = datenAnBackendSenden(
+            hauptPfad = "isin/", 
+            unterPfad = "getalle", 
+            daten = {
+                "benutzer_id": request.user.username,
+            }
+        )
+        if(allgemeineFehlerPruefung(serverAntwort, request)):
+            return redirect(reverse(self.appName + ":" + self.appName + "-fehler"))  #appname:appname-fehler
+
+        alleIsins = []
+        """ 
+        Die ISINs können Indizes und Währungen enthalten. 
+        Indices können anhand zwei verschiedener Attribute (ist_index == True und einheit == "Punkte") identifiziert werden
+        Währungen können anhand der Einheit identifiziert werden (einheit == "undefiniert")
+        Alle ISINs die nicht diese Attribute haben, werden in eine separate Liste gespeichert und schließlich im Context gespeichert
+        """
+        for isin in serverAntwort["isins"]:
+            if(not isin["ist_index"] and isin["einheit"] != "Punkte" and isin["einheit"] != "undefiniert"):
+                alleIsins.append(isin)
+                
+        context['isins']   = alleIsins
+        context["appName"] = self.appName
+        # ------------------------
+        return self.render_to_response(context)
+
+    def form_valid(self, form):
+        """
+        Hier werden die Eingabedaten des Nutzers an das Backend gesendet. 
+        Wenn dabei Fehler entstanden sind, wird auf die Fehlerseite weitergeleitet. 
+        Ansonsten wird mit dem return von super.form_valid automatisch ein Simulations-Objekt erstellt, get_absolute_url des Objekts aufgerufen und
+        somit auf die Simulations-Ergebnis-Ansicht weitergeleitet.
+
+        """
+        daten = {
+                "benutzer_id"   : self.request.user.username,
+                "isin"          : form.cleaned_data["isin"],
+                "start_datum"   : str(form.cleaned_data["von_datum"]),
+                "end_datum"     : str(form.cleaned_data["bis_datum"])
+            }
+        if(self.appName == "simulation"):
+            daten["strategie_id"]  = int(form.cleaned_data["strategie"])
+            daten["start_kapital"] = int(form.cleaned_data["startkapital"])
+            unterPfad = ""
+            
+        if(self.appName == "indikator"):
+            unterPfad   = "/auswerten"
+            daten["id"] = self.kwargs.get("id")
+
+        plotDaten = datenAnBackendSenden(
+            hauptPfad = self.appName, 
+            unterPfad = unterPfad, 
+            daten     = daten
+        )
+
+        if(allgemeineFehlerPruefung(plotDaten, self.request)):
+            return redirect(reverse(self.appName + ":" + self.appName + "-fehler"))  #appname:appname-fehler  
+        else:
+            self.request.session["plotDaten"]   = plotDaten
+            self.request.session["konfigDaten"] = daten
+            return super().form_valid(form) 
 
 def datenAnBackendSenden(hauptPfad, unterPfad, daten):
     """
@@ -447,7 +549,6 @@ def renderObjekt(callerSelf, objekttyp, model, hauptPfad, fehlerSeite, leerzeich
             setattr(objektFuerDarstellung, "berechnung_pseudo_code", objektFuerDarstellung.berechnung_pseudo_code.replace("	","&nbsp&nbsp&nbsp&nbsp")) #Tabulator durch 4 HTML-Leerzeichen ersetzen
     
     if(objekttyp == "strategie"):
-        
         callerSelf.request.session["verwendete-regeln"] = serverAntwort[objekttyp]["regeln"]
 
     callerSelf.object  = objektFuerDarstellung

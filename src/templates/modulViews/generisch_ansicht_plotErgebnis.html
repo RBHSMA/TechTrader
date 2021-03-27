@@ -1,0 +1,102 @@
+{%extends 'base.html' %}
+
+{% block titel %}TechTrader | {{appName | title }} Test Graph{%endblock%}
+
+{% block skripte %}
+    <script type = "text/javascript" src = "https://cdn.bokeh.org/bokeh/release/bokeh-2.2.3.min.js"></script>
+    <script type = "text/javascript" src = "https://cdn.bokeh.org/bokeh/release/bokeh-widgets-2.2.3.min.js"></script>
+    <script type = "text/javascript" src = "https://cdn.bokeh.org/bokeh/release/bokeh-tables-2.2.3.min.js"></script>
+    <script type = "text/javascript" src = "https://cdn.bokeh.org/bokeh/release/bokeh-api-2.2.3.min.js"></script>
+    {{script|safe}}
+{% endblock %}
+
+{% block content %}
+    <article>
+        <h1 class = "objektinformation">
+            {% include 'zurueck_pfeil.html'%}
+            {% if appName == "simulation" %}
+                <span id = "headline1span">
+                    ISIN : {{daten.isin}}
+                </span>
+                Simulation auf {{daten.name}}
+            {% endif %}
+            {% if appName == "indikator" %}
+                Indikator "{{daten.name}}"
+            {% endif %}
+        </h1>
+
+        <div id = "statistikdate">
+            {% if appName == "simulation" %}
+                <div class = "blocktext">
+                    <span class = "labelspan">Strategie-ID:</span>
+                    <p>{{daten.strategie_id}}</p>
+                </div>
+                <div class = "blocktext">
+                    <span class = "labelspan">Strategie-Name:</span>
+                    <p>{{daten.strategie_name}}</p>
+                </div>
+            {% endif %}
+
+            {% if appName == "indikator" %}
+                <div class = "blocktext">
+                    <span class = "labelspan">Indikator-ID:</span>
+                    <p>{{daten.id}}</p>
+                </div>
+                <div class = "blocktext">
+                    <span class = "labelspan">Indikator-Name:</span>
+                    <p>{{daten.name}}</p>
+                </div>
+
+                <div class = "blocktext">
+                    <span class = "labelspan">ISIN:</span>
+                    <p>{{daten.isin}}</p>
+                </div>
+
+                <div class = "blocktext">
+                    <span class = "labelspan">Aktien-Name:</span>
+                    <p>{{daten.isinName}}</p>
+                </div>
+            
+            {% endif %}
+            <div class = "blocktext">
+                <span class="labelspan">Zeitraum von:</span>
+                <p>{{daten.start_datum}}</p>
+            </div>
+            
+            <div class = "blocktext">
+                <span class="labelspan">Zeitraum bis:</span>
+                <p>{{daten.end_datum}}</p>
+            </div>
+        </div>
+
+        {% if appName == "indikator" %}
+        <span class = "labelspan">Beschreibung</span>
+        <p class = "objektinformation">{{daten.beschreibung}}</p>
+        
+        <span class = "labelspan">Code</span>
+        {% autoescape off %}
+            <p>{{daten.berechnung_pseudo_code|linebreaks}}</p>
+        {% endautoescape %}
+        {% endif %}
+
+        <div id = "statistik">
+            {{div|safe}}
+        </div>
+        
+        {% if appName == "simulation" %}
+        {% include "./generisch_Elemente/statistische_Felder.html" %}
+            <form action = "../download/">
+                <input id = "formzurueck"  type = "submit" value = "Download" />
+            </form> 
+        {% endif %}
+
+        {% if appName == "indikator" %}
+            {% if bearbeitbar %}
+                <form action = "../bearbeiten/">
+                    <input id = "submit"  type = "submit" value = "Bearbeiten" />
+                </form>
+            {%endif%}
+        {% endif %}
+
+    </article>
+{% endblock %}

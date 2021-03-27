@@ -193,4 +193,4 @@ MEDIA_URL = '/media/'
 AUTH_EXEMPT_ROUTES = ('registrieren','login','about') #Seiten die nicht betroffen sind von der Weiterleitung
 AUTH_LOGIN_ROUTE = 'login-view' #Seite auf die Weitergeleitet werden soll
 
-BACKEND_URL = "http://9121452905ff.eu.ngrok.io/" # Hier kommt der URL der API des Backends
+BACKEND_URL = "http://bd0269b1be4a.eu.ngrok.io/" # Hier kommt der URL der API des Backends

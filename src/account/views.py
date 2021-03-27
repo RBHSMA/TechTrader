@@ -18,6 +18,10 @@ def registration_view(request):
         Wenn HTTP Methode gleich POST:
             Wenn Daten valide sind, Nutzer authentifizieren, einloggen und auf den Home-Screen weiterleiten.
         """
+
+    if request.user.is_authenticated:
+        return redirect("/home/")
+
     context = {}
     if request.POST:
 
