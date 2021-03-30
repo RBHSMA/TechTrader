@@ -21,14 +21,14 @@
 {% else %} 
     <form action = "." method = "post"> {% csrf_token %}
 
-        <label class = "labelspan">Name :</label>
+        <label class = "labelspan">Name:</label>
         {{form.name}}
 
-        <label class = "labelspan">Beschreibung :</label>
+        <label class = "labelspan">Beschreibung:</label>
         {{form.beschreibung}}
 
         {% if appName == "indikator" %}
-            <label class = "labelspan">Code :</label>
+            <label class = "labelspan">Code:</label>
             {{form.berechnung_pseudo_code}}
             {{form.eigene_skala}}
             <label class = "labelspan">Eigene Skala verwenden?</label>

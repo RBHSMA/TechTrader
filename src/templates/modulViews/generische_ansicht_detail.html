@@ -23,16 +23,19 @@
                 <input id = "submit" id = "formzurueck"  type = "submit" value = "Plotten" />
             </form>  
         {% endif %}
-
         {% if bearbeitbar %}
-        <form action = "./bearbeiten/">
-            <input id = "submit"  type = "submit" value = "Bearbeiten" />
-        </form>
-        
+            <form action = "./bearbeiten/">
+                <input id = "submit"  type = "submit" value = "Bearbeiten" />
+            </form>
+
+        {% endif %}
+            
+        {% if bearbeitbar and loeschbar %}
         <form action = "./entfernen/">
             <input id = "formzurueck"  type = "submit" value = "Entfernen" />
         </form> 
-        {%endif%}
+
+        {% endif %}
         
     </article>
 {% endblock %}

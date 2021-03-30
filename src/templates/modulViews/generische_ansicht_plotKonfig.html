@@ -26,19 +26,19 @@
             {% if appName == "simulation" %}
                 <form action = "." method = "post" onsubmit = "alleEingabenSpeichern()"> {% csrf_token %}
                     {{form.as_p}}  
-                    <label class = "labelspan">Strategie :</label>
+                    <label class = "labelspan">Strategie:</label>
                     <select id = "addsimhead" required>
                         {% for strategie in strategien %}
                             <option value = "{{strategie.id}}">{{strategie.id}} - {{strategie.name}} - {{strategie.beschreibung}}</option>
                         {%endfor%}
                     </select>
             {% else %}
-                <form action = "../graph"> 
+                <form action = "." method = "post" > {% csrf_token %}
                     {{form.as_p}}  
             {% endif %}
 
             
-            <label class = "labelspan">ISIN :</label>
+            <label class = "labelspan">ISIN:</label>
             
             <select id = "addsimhead2" required>
             {% for isin in isins %}

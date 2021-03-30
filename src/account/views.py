@@ -30,9 +30,7 @@ def registration_view(request):
         if form.is_valid():
             form.cleaned_data["email"] = form.cleaned_data.get('email').lower()
             form.save() 
-            login(
-                request = request,
-                account = authenticate(
+            login(request = request, user = authenticate(                    
                     email    = form.cleaned_data.get('email'),
                     password = form.cleaned_data.get('password1') # da beide Passwort-Eingaben identisch, reicht der Wert der ersten
                 )

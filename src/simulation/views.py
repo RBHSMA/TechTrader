@@ -440,7 +440,7 @@ def downloadCSV(request):
     kaufVerkaufCounter = 0 # Für das Zählen von bereits aufgeschriebenen Käufen/Verkäufen
     for idx, datensatz in enumerate(daten["indikator_zeitreihe"]): # für jeden Datensatz in den indikator-zeitreihe
         einzelneZeile = [] # Neue Zeile initialisieren
-        einzelneZeile.append(datetime.strptime(datensatz["zeitstempel"],'%Y-%m-%dT%H:%M:%S%z').strftime('%d.%m.%Y %H:%M:%S')) # Zeitstempel anfügen
+        einzelneZeile.append(datetime.strptime(datensatz["zeitstempel"],'%Y-%m-%dT%H:%M:%S%z').strftime('%d.%m.%Y')) # Zeitstempel anfügen
 
         # für jeden einzelne Wert in der kurs_zeitreihe außer zeitstempel
         for wert in daten["kurs_zeitreihe"][0]: # wert ist hierbei der key 

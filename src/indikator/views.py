@@ -124,6 +124,7 @@ class IndikatorGraphView(View):
             return redirect(reverse('indikator:indikator-fehler')) 
 
         konfigDaten = request.session["konfigDaten"]
+        print(konfigDaten)
         daten = {
             "id"          : konfigDaten["id"],
             "benutzer_id" : self.request.user.username,

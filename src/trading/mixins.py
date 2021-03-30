@@ -18,7 +18,7 @@ class renderObjectHolenMixin:
     appName             = None
     model               = None
     leerzeichenErsetzen = None
-    istDetailView       = None
+    operationArt        = None
     
     def get(self, request, **kwargs):
         """
@@ -33,11 +33,23 @@ class renderObjectHolenMixin:
             fehlerSeite         = self.appName + ":" + self.appName + "-fehler",
             leerzeichenErsetzen = self.leerzeichenErsetzen,
         )
-        # Objekt wird zurückgegeben wenn renderObjectHolenMixin vom DetailView aufgerufen wird, oder wenn es bearbeitbar ist. 
-        # Bearbeitbar-Attribut ist wichtig für die Bearbeiten- und Entfernen-Ansicht
-        if(self.istDetailView):
+        # Wenn operationArt == "detail" heißt das, dass das mixin von detailView aufgerufen wurde, somit wird das objectZumRender zurückgegebn. 
+        # Ansonsten wird der Mixin von entweder dem bearbeitenView oder entfernenView aufgerufen
+        # also muss geprüft werden, ob das geholte objekt bearbeitbar ist
+        # wenn ja, dann wird noch geprüft ob dieser Mixin vom entfernenView aufgerufen wird
+        #   wenn ja, dann muss geschaut werden ob das objekt löschbar ist
+        #       wenn ja, dann objekt zum rendern zurückgeben
+        #       wenn nein, dann redirect zum detailView des Objekts
+        #   wenn nein, dann wurde der Mixin vom bearbeitenView aufgerufen, somit wird das objectZumRender zurückgegebn.
+        # wenn nicht bearbeitbar, redirect zum detailView des Objekts
+        
+        if(self.operationArt == "detail"):
             return objektZumRender
-        if(self.request.session["bearbeitbar"] == True):
+
+        if(self.request.session["bearbeitbar"]):
+            if(self.operationArt == "entfernen"):
+                if(not self.request.session["loeschbar"]):
+                    return redirect("../")
             return objektZumRender
         return redirect("../")
 
@@ -86,7 +98,6 @@ class formValidierenMixin:
             request     = self.request,
             fehlerSeite = self.appName + ":" + self.appName + "-fehler"
         )
-
 
 class listenViewMixin(ListView):
     """
@@ -184,7 +195,7 @@ class detailViewMixin(renderObjectHolenMixin, DetailView):
     appName             = None
     model               = None
     leerzeichenErsetzen = True
-    istDetailView       = True
+    operationArt        = "detail"
 
     def get_context_data(self, *args, **kwargs):
         """
@@ -193,6 +204,7 @@ class detailViewMixin(renderObjectHolenMixin, DetailView):
         """
         context                = super().get_context_data(**kwargs)  
         context["bearbeitbar"] = self.request.session["bearbeitbar"]
+        context["loeschbar"]   = self.request.session["loeschbar"]
         return context
 
 class bearbeitenViewMixin(renderObjectHolenMixin, formValidierenMixin, CreateView):
@@ -210,7 +222,7 @@ class bearbeitenViewMixin(renderObjectHolenMixin, formValidierenMixin, CreateVie
     model               = None
     neuErstellen        = False
     leerzeichenErsetzen = False
-    istDetailView       = False
+    operationArt        = "bearbeiten"
 
 class entfernenViewMixin(renderObjectHolenMixin, DeleteView):
     """
@@ -224,7 +236,7 @@ class entfernenViewMixin(renderObjectHolenMixin, DeleteView):
     appName             = None
     model               = None
     leerzeichenErsetzen = True
-    istDetailView       = False
+    operationArt        = "entfernen"
 
     def post(self, request, *args, **kwargs):
         """
@@ -294,10 +306,8 @@ class plotKonfigViewMixin(CreateView):
         Diese werden an das Template über den Context weitergegeben. Die getroffene Wahl wird über JavaScript in das entsprechende Formular Feld geschrieben
         """
         self.model.objects.all().delete() # Alle erstellten Objekte löschen. Diese werden temporär erstellt um verlustfreies Anzeigen von Daten zu garantieren
-
         self.object  = None # CreateView braucht irgendein Object, None ist dabei ein valider Wert
         context      = super().get_context_data(**kwargs) 
-        
         # Hier werden alle Strategie-Daten bezogen.
         if(self.appName == "simulation"):
             serverAntwort = datenAnBackendSenden(
@@ -345,16 +355,17 @@ class plotKonfigViewMixin(CreateView):
         """
         Hier werden die Eingabedaten des Nutzers an das Backend gesendet. 
         Wenn dabei Fehler entstanden sind, wird auf die Fehlerseite weitergeleitet. 
-        Ansonsten wird mit dem return von super.form_valid automatisch ein Simulations-Objekt erstellt, get_absolute_url des Objekts aufgerufen und
-        somit auf die Simulations-Ergebnis-Ansicht weitergeleitet.
+        Abhängig davon ob diese funktion vom indikator oder simulation module aufgerufen werden, werden die daten und der Unterpfad angepasst.
 
         """
+        form.instance.indikatorId = self.kwargs.get("id")
         daten = {
                 "benutzer_id"   : self.request.user.username,
                 "isin"          : form.cleaned_data["isin"],
                 "start_datum"   : str(form.cleaned_data["von_datum"]),
                 "end_datum"     : str(form.cleaned_data["bis_datum"])
             }
+    
         if(self.appName == "simulation"):
             daten["strategie_id"]  = int(form.cleaned_data["strategie"])
             daten["start_kapital"] = int(form.cleaned_data["startkapital"])
@@ -529,6 +540,77 @@ def renderObjekt(callerSelf, objekttyp, model, hauptPfad, fehlerSeite, leerzeich
     if(allgemeineFehlerPruefung(serverAntwort, callerSelf.request)):
         return redirect(reverse(fehlerSeite))
 
+    
+    verwendeteIndikatorenListe = []
+    verwendeteRegelnListe      = []
+    
+    # Holt alle Indikatoren
+    alleIndikatoren = datenAnBackendSenden(
+        hauptPfad = "indikator/",
+        unterPfad = "getalle", 
+        daten     = {
+        "benutzer_id" : callerSelf.request.user.username,
+        }
+    )
+    # Die Indikatoren in alleIndikatoren werden durchgelaufen und es wird dabei geschaut, welche Indikatoren der geprüfte Indikator verwendet. 
+    # Die IDs der verwendeten Indikatoren werden in die verwendeteIndikatorenListe hinzugefügt. 
+    for indikator in alleIndikatoren["indikatoren"]:
+        if(len(indikator["verwendete_indikatoren"])>0):
+            for verwendeterIndikator in indikator["verwendete_indikatoren"]:
+                if(verwendeterIndikator not in verwendeteIndikatorenListe):
+                    verwendeteIndikatorenListe.append(verwendeterIndikator)
+
+    # Holt alle Regeln
+    alleRegeln = datenAnBackendSenden(
+        hauptPfad = "regel/",
+        unterPfad = "getalle", 
+        daten     = {
+        "benutzer_id" : callerSelf.request.user.username,
+        }
+    )
+    # Die Regeln in alleRegeln werden durchgelaufen und es wird dabei geschaut, welche Indikatoren order Regeln die geprüfte Regel verwendet. 
+    # Die IDs der verwendeten Indikatoren werden in der verwendeteIndikatorenListe hinzugefügt. 
+    # Die IDs der verwendeten Regeln werden in der verwendeteRegelnListe hinzugefügt. 
+    for regel in alleRegeln["regeln"]:
+        if(len(regel["verwendete_indikatoren"])>0):
+            for verwendeterIndikator in regel["verwendete_indikatoren"]:
+                if(verwendeterIndikator not in verwendeteIndikatorenListe):
+                    verwendeteIndikatorenListe.append(verwendeterIndikator)
+
+        if(len(regel["verwendete_regeln"])>0):
+            for verwendeteRegel in regel["verwendete_regeln"]:
+                    if(verwendeteRegel not in verwendeteRegelnListe):
+                        verwendeteRegelnListe.append(verwendeteRegel)
+
+    # Holt alle Stratgien
+    alleStrategien = datenAnBackendSenden(
+        hauptPfad = "strategie/",
+        unterPfad = "getalle", 
+        daten     = {
+        "benutzer_id" : callerSelf.request.user.username,
+        }
+    )   
+    # Die Strategien in alleStrategien werden durchgelaufen und es wird dabei geschaut, welche Regeln die geprüften Strategie verwendet. 
+    # Die IDs der verwendeten Regeln werden in der verwendeteRegelnListe hinzugefügt. 
+    for strategie in alleStrategien["strategien"]:       
+        if(len(strategie["regeln"])>0):  
+            for verwendeteRegel in strategie["regeln"]:
+                if(verwendeteRegel not in verwendeteRegelnListe):
+                        verwendeteRegelnListe.append(verwendeteRegel)
+    
+    # Wenn die ID von einer Regel oder einem Indikator in der jeweiligen Liste vorhanden ist, wird in der Session der loeschbar boolean als False gesetzt. 
+    # Diese Session Variable wird im Detail View oder Delete View verwendet.
+    callerSelf.request.session["loeschbar"] = True
+    if(objekttyp == "regel"):
+        if(serverAntwort[objekttyp]["id"] in verwendeteRegelnListe):
+            callerSelf.request.session["loeschbar"] = False
+    if(objekttyp == "indikator"):
+        if(serverAntwort[objekttyp]["id"] in verwendeteIndikatorenListe):
+            callerSelf.request.session["loeschbar"] = False
+
+    # Wenn das geholte objekt vom superuser erstellt wurde, wird geprüft, ob der Nutzer der auf dieses Objekt versucht zuzugreifen, selber der superuser ist
+    # Wenn ja, dann ist das Objekt bearbeitbar, ansonsten nicht.
+    # Ob ein Objekt bearbeitbar ist, wird in der Session gespeichert. # Diese Session Variable wird im Detail View oder Edit View verwendet.
     if(serverAntwort[objekttyp]["benutzer_id"] == "superuser"):
         if(callerSelf.request.user.username == "superuser"):
             callerSelf.request.session["bearbeitbar"] = True

@@ -287,7 +287,7 @@ nav li#user-info>span:after {
     width: 75%;
     font-size: 21px;
     color:#fff;
-    word-break: break-all;
+    word-break: break-word;
 }
 
 #addsimhead {

@@ -1,6 +1,6 @@
 {%extends 'base.html' %}
 
-{% block titel %}TechTrader | {{appName | title }}{%endblock%}
+{% block titel %}TechTrader | {{appName | title }} Liste{%endblock%}
 
 {%block skripte%}
   <script src = "https://code.jquery.com/jquery-3.5.1.js" integrity = "sha256-QWo7LDvxbWT2tbbQ97B53yJnYU3WhH/C8ycbRAkjPDc="  crossorigin = "anonymous"></script>
@@ -8,7 +8,7 @@
 
 {%block content%}
   <article>
-    <h1>{{appName | title }}</h1>
+    <h1>{{appName | title }} Liste</h1>
 
     <form action = "./hinzufuegen/">
       <input id = "btnadd" type = "submit" value = "+ {{appName | title}} hinzufügen" />

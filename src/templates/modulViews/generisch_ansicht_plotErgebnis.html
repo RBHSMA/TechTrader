@@ -70,10 +70,10 @@
         </div>
 
         {% if appName == "indikator" %}
-        <span class = "labelspan">Beschreibung</span>
+        <span class = "labelspan">Beschreibung:</span>
         <p class = "objektinformation">{{daten.beschreibung}}</p>
         
-        <span class = "labelspan">Code</span>
+        <span class = "labelspan">Code:</span>
         {% autoescape off %}
             <p>{{daten.berechnung_pseudo_code|linebreaks}}</p>
         {% endautoescape %}

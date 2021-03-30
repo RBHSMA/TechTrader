@@ -23,17 +23,17 @@ class Indikator(models.Model):
 class IndikatorPlotKonfig(models.Model):
   '''
   Klasse des IndikatorPlotKonfig Models.
-  Besteht aus den Felder "isin", "von_datum" und "bis_datum"
+  Besteht aus den Felder "isin", "von_datum", "bis_datum" und "indikatorID"
   '''
-  von_datum           = models.DateField()
-  bis_datum           = models.DateField()
-  isin                = models.CharField(max_length = 12, blank = True, null = True)  # Die ausgewählte ISIN
-
+  von_datum   = models.DateField()
+  bis_datum   = models.DateField()
+  isin        = models.CharField(max_length = 12, blank = True, null = True)  # Die ausgewählte ISIN
+  indikatorId = models.IntegerField(null = True, blank = True)
 
   def get_absolute_url(self):
     """
     Wird als "Success-url" bei erfolgreichem Ausfüllen des Forms verwendet.
     """
-    return reverse("indikator:indikator-graph", kwargs={"id" : self.id})
+    return reverse("indikator:indikator-graph", kwargs={"id" : self.indikatorId})
   
     

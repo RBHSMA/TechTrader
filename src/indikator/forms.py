@@ -31,9 +31,11 @@ class IndikatorPlotKonfigForm(forms.ModelForm):
             "isin",  
             "von_datum", 
             "bis_datum", 
+            "indikatorId"
         ]
         widgets = { # hier werden die Felderarten und css Klassen festgelegt.
             "isin"         : forms.HiddenInput(), # Dieses Feld wird vom System mit der getroffenen Wahl befüllt. Ist aber für Nutzer nicht sichtbar
+            "indikatorId"         : forms.HiddenInput(), # Dieses Feld wird vom System mit der getroffenen Wahl befüllt. Ist aber für Nutzer nicht sichtbar
             "von_datum"    : forms.DateInput(attrs={"type" : "date"}),
             "bis_datum"    : forms.DateInput(attrs={"type" : "date"}),
         }

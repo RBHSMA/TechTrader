@@ -26,7 +26,7 @@ SECRET_KEY = 'h44n-^i48tjjo85glfd!-@nb9%+1#2^ll3kbvnadzi=08(fkny'
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    'e17a45c94a9a.ngrok.io', # für ngrok
+    '6a084482f895.ngrok.io', # für ngrok
     '127.0.0.1' 
 ]
 
@@ -193,4 +193,4 @@ MEDIA_URL = '/media/'
 AUTH_EXEMPT_ROUTES = ('registrieren','login','about') #Seiten die nicht betroffen sind von der Weiterleitung
 AUTH_LOGIN_ROUTE = 'login-view' #Seite auf die Weitergeleitet werden soll
 
-BACKEND_URL = "http://bd0269b1be4a.eu.ngrok.io/" # Hier kommt der URL der API des Backends
+BACKEND_URL = "http://8fd0b6278897.eu.ngrok.io/" # Hier kommt die URL der API des Backends
